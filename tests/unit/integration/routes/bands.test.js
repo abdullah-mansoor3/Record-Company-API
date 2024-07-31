@@ -17,6 +17,11 @@ afterAll(async () => {
 });
 
 describe('/bands', () => {
+  beforeEach(async()=>{
+    await connection.query(`SET FOREIGN_KEY_CHECKS = 0;`);
+    await connection.query(`TRUNCATE TABLE bands;`);
+    await connection.query(`SET FOREIGN_KEY_CHECKS = 1;`);
+  });
   describe('GET /', () => {
     it('should return all bands', async () => {
       await connection.query(`
@@ -90,6 +95,9 @@ describe('/bands', () => {
     };
 
     beforeEach(async () => {
+      await connection.query(`SET FOREIGN_KEY_CHECKS = 0;`);
+      await connection.query(`TRUNCATE TABLE bands;`);
+      await connection.query(`SET FOREIGN_KEY_CHECKS = 1;`);
       const [result] = await connection.query(`
         INSERT INTO bands (name) VALUES
         ('Band 1')
