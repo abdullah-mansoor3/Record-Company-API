@@ -1,7 +1,8 @@
 const request = require('supertest');
-const mysql = require('mysql2/promise');;
+const mysql = require('mysql2/promise');
 const config = require('config');
 const app = require('../../../../index');
+
 let connection;
 
 beforeAll(async () => {
@@ -9,19 +10,21 @@ beforeAll(async () => {
     host: 'localhost',
     user: 'root',
     password: config.get('mySqlPass'),
-    database: config.get('db')}
-)});
+    database: 'record_company_test'
+  });
+});
 
 afterAll(async () => {
   await connection.end();
 });
 
 describe('/bands', () => {
-  beforeEach(async()=>{
-    await connection.query(`SET FOREIGN_KEY_CHECKS = 0;`);
-    await connection.query(`TRUNCATE TABLE bands;`);
-    await connection.query(`SET FOREIGN_KEY_CHECKS = 1;`);
+  beforeEach(async () => {
+    await connection.query('SET FOREIGN_KEY_CHECKS = 0;');
+    await connection.query('DELETE FROM bands;'); 
+    await connection.query('SET FOREIGN_KEY_CHECKS = 1;');
   });
+
   describe('GET /', () => {
     it('should return all bands', async () => {
       await connection.query(`
@@ -30,7 +33,7 @@ describe('/bands', () => {
         ('Band 2'),
         ('Band 3');
       `);
-      await connection.commit(); // Added to ensure data is committed before query
+
       const res = await request(app).get('/bands');
       expect(res.status).toBe(200);
       expect(res.body.length).toBe(3);
@@ -40,51 +43,55 @@ describe('/bands', () => {
     });
   });
 
-  describe('GET/:id', () => {
+  describe('GET /:id', () => {
     it('should return 404 if band with the given id does not exist', async () => {
       const res = await request(app).get('/bands/2343');
       expect(res.status).toBe(404);
     });
 
     it('should return the band if it exists', async () => {
-      const [result] = await connection.query(`INSERT INTO bands (name) VALUES ('band1');`);
-      const id = result.insertId; // Get the inserted id
-      await connection.commit(); // Added to ensure data is committed before query
+      const [result] = await connection.query('INSERT INTO bands (name) VALUES (?)', ['Band 1']);
+      const id = result.insertId;
+
       const res = await request(app).get(`/bands/${id}`);
       expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty('name', 'band1');
+      expect(res.body).toHaveProperty('name', 'Band 1');
     });
   });
 
   describe('POST /', () => {
     let name;
     const exec = async () => {
-      return await request(app)
-        .post('/bands')
-        .send({ name });
+        return await request(app)
+            .post('/bands')
+            .send({ name });
     };
 
-    beforeEach(async () => {
-      name = 'band1';
+    beforeEach(() => {
+        name = 'band1';
     });
 
-    it('should return status 400 if name is less than 3', async () => {
-      name = '12';
-      const res = await exec();
-      expect(res.status).toBe(400);
+    it('should return 400 if name is less than 3 characters', async () => {
+        name = '12';
+        const res = await exec();
+        expect(res.status).toBe(400);
     });
 
     it('should return 400 if name is more than 255 characters', async () => {
-      name = new Array(257).join('a');
-      const res = await exec();
-      expect(res.status).toBe(400);
+        name = new Array(257).join('a');
+        const res = await exec();
+        expect(res.status).toBe(400);
     });
 
     it('should return 200 on correct request body', async () => {
-      const res = await exec();
-      expect(res.status).toBe(200);
+        const res = await exec();
+        expect(res.status).toBe(200);
+        console.log(res.body);
+        expect(res.body).toHaveProperty('id'); 
+        expect(res.body).toHaveProperty('name', 'band1'); 
     });
-  });
+});
+
 
   describe('PUT /:id', () => {
     let name, id;
@@ -95,19 +102,16 @@ describe('/bands', () => {
     };
 
     beforeEach(async () => {
-      await connection.query(`SET FOREIGN_KEY_CHECKS = 0;`);
-      await connection.query(`TRUNCATE TABLE bands;`);
-      await connection.query(`SET FOREIGN_KEY_CHECKS = 1;`);
-      const [result] = await connection.query(`
-        INSERT INTO bands (name) VALUES
-        ('Band 1')
-      `);
+      await connection.query('SET FOREIGN_KEY_CHECKS = 0;');
+      await connection.query('DELETE FROM bands;');
+      await connection.query('SET FOREIGN_KEY_CHECKS = 1;');
+
+      const [result] = await connection.query('INSERT INTO bands (name) VALUES (?)', ['Band 1']);
       id = result.insertId;
       name = 'band1';
-      await connection.commit();
     });
 
-    it('should return status 400 if name is less than 3', async () => {
+    it('should return 400 if name is less than 3 characters', async () => {
       name = '12';
       const res = await exec();
       expect(res.status).toBe(400);
@@ -119,13 +123,13 @@ describe('/bands', () => {
       expect(res.status).toBe(400);
     });
 
-    it('should return 404 if band not found', async () => {
+    it('should return 404 if band with the given id does not exist', async () => {
       id = 8398;
       const res = await exec();
       expect(res.status).toBe(404);
     });
 
-    it('should return 200 and updated object if req is valid', async () => {
+    it('should return 200 and the updated object if request is valid', async () => {
       const res = await exec();
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('name', name);
@@ -142,15 +146,11 @@ describe('/bands', () => {
     };
 
     beforeEach(async () => {
-      const [result] = await connection.query(`
-        INSERT INTO bands (name) VALUES
-        ('Band 1')
-      `);
+      const [result] = await connection.query('INSERT INTO bands (name) VALUES (?)', ['Band 1']);
       id = result.insertId;
-      await connection.commit();
     });
 
-    it('should return 404 if band not found', async () => {
+    it('should return 404 if band with the given id does not exist', async () => {
       id = 8398;
       const res = await exec();
       expect(res.status).toBe(404);
@@ -158,8 +158,7 @@ describe('/bands', () => {
 
     it('should delete the band if it exists and return the band', async () => {
       const res = await exec();
-      await connection.commit();
-      const [band] = await connection.query(`SELECT * FROM bands WHERE id=?;`, [id]);
+      const [band] = await connection.query('SELECT * FROM bands WHERE id = ?', [id]);
 
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('id', id);

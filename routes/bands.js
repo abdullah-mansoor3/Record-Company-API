@@ -23,8 +23,9 @@ router.post('/', async (req, res) => {
         return res.status(400).send(error.details[0].message);
     }
     const {name} = req.body;
-    const result = await db.query('INSERT INTO bands (name) VALUES (?)', [name]);
-    return res.send({ id: result });
+    const [result] = await db.query('INSERT INTO bands (name) VALUES (?)', [name]);
+    const [bands] = await db.query(`SELECT * FROM bands WHERE id = ?`, [result.insertId]);
+    return res.send(bands[0]);
 });
 
 router.put('/:id',async (req, res)=>{
