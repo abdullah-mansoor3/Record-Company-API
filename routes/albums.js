@@ -39,4 +39,28 @@ router.post('/', async (req, res) => {
 });
 
 
+router.put('/:id', async (req, res) => {
+    const { error } = validate(req.body);
+    if (error) {
+        return res.status(400).send(error.details[0].message);
+    }
+
+    const { name, release_year, band_id } = req.body;
+
+    //check if the band with the given id exists
+    const [bands] = await db.query('SELECT * FROM bands WHERE id = ?', [band_id]);
+    if (bands.length === 0) {
+        return res.status(400).send('Invalid band id');
+    }
+
+    const [result] = await db.query('UPDATE albums SET name = ?, release_year = ?, band_id = ? WHERE id = ?', [name, release_year, band_id, req.params.id]);
+    if (result.affectedRows === 0) {
+        return res.status(404).send('Album not found');
+    }
+
+    const [album] = await db.query('SELECT * FROM albums WHERE id = ?', [req.params.id]);
+    return res.status(200).send(album[0]);
+});
+
+
 module.exports = router;

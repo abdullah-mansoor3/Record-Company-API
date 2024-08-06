@@ -73,19 +73,23 @@ describe('/albums', () => {
     });
 
     describe('POST /', () => {
-        let name, release_year, band_id;
+        let name, release_year, band_id, correctBandId;
         const exec = async () => {
           return await request(app)
             .post('/albums')
             .send({ name, release_year, band_id });
         };
+
+        beforeAll(async ()=>{
+            // Insert a band for testing
+            const [result] = await connection.query('INSERT INTO bands (name) VALUES (?)', ['Band 1']);
+            correctBandId = result.insertId;
+        });
       
-        beforeEach(async () => {
-          // Insert a band for testing
-          const [result] = await connection.query('INSERT INTO bands (name) VALUES (?)', ['Band 1']);
-          band_id = result.insertId;
-          name = 'Album 1';
-          release_year = 2001;
+        beforeEach(() => {
+            band_id = correctBandId;
+            name = 'Album 1';
+            release_year = 2001;
         });
       
         it('should return 400 if band_id does not exist', async () => {
@@ -107,7 +111,7 @@ describe('/albums', () => {
           });
 
           it('should return 400 if year is more than the current year', async () => {
-            release_year = new Date().getFullYear();
+            release_year = new Date().getFullYear() + 1;
             const res = await exec();
             expect(res.status).toBe(400);
           });
@@ -127,5 +131,81 @@ describe('/albums', () => {
           expect(res.body).toHaveProperty('band_id', band_id);
         });
       });
+
+
+
+      describe('PUT /:id', () => {
+        let name, release_year, band_id, album_id, correctAlbumId, correctBandId;
       
+        const exec = async () => {
+          return await request(app)
+            .put(`/albums/${album_id}`)
+            .send({ name, release_year, band_id });
+        };
+      
+        beforeAll(async () => {
+          // Insert a band for testing
+          const [result] = await connection.query('INSERT INTO bands (name) VALUES (?)', ['Band 1']);
+          correctBandId = result.insertId;
+          
+          // Insert an album for updating
+          const [albumResult] = await connection.query('INSERT INTO albums (name, release_year, band_id) VALUES (?, ?, ?)', ['Old Album', 2000, correctBandId]);
+          correctAlbumId = albumResult.insertId;
+      
+          
+        });
+
+        beforeEach(()=>{
+            band_id = correctBandId;
+            album_id = correctAlbumId;
+            name = 'Updated Album';
+            release_year = 2021;  
+        });
+      
+        it('should return 400 if band_id does not exist', async () => {
+          band_id = 9999; // Non-existing band_id
+          const res = await exec();
+          expect(res.status).toBe(400);
+        });
+      
+        it('should return 400 if name is less than 3 characters', async () => {
+          name = 'AB';
+          const res = await exec();
+          expect(res.status).toBe(400);
+        });
+      
+        it('should return 400 if release_year is less than 1900', async () => {
+          release_year = 1899;
+          const res = await exec();
+          expect(res.status).toBe(400);
+        });
+      
+        it('should return 400 if release_year is more than the current year', async () => {
+          release_year = new Date().getFullYear() + 1;
+          const res = await exec();
+          expect(res.status).toBe(400);
+        });
+      
+        it('should return 400 if name is more than 255 characters', async () => {
+          name = new Array(257).join('a');
+          const res = await exec();
+          expect(res.status).toBe(400);
+        });
+      
+        it('should return 404 if album with the given id does not exist', async () => {
+          album_id = 9999; // Non-existing album_id
+          const res = await exec();
+          expect(res.status).toBe(404);
+        });
+      
+        it('should return 200 and the updated album if request is valid', async () => {
+          const res = await exec();
+          expect(res.status).toBe(200);
+          expect(res.body).toHaveProperty('name', name);
+          expect(res.body).toHaveProperty('release_year', release_year);
+          expect(res.body).toHaveProperty('band_id', band_id);
+          expect(res.body).toHaveProperty('id', album_id);
+        });
+      
+    });
 });
