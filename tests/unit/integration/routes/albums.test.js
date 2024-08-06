@@ -50,7 +50,7 @@ describe('/albums', () => {
             expect(res.body.some(a => a.release_year === 2003)).toBeTruthy();
             expect(res.body.some(a => a.band_id === bandId)).toBeTruthy();
         });
-    }, 10000);
+    });
 
     describe('GET /:id', () => {
         it('should return 404 if album with the given id does not exist', async () => {
@@ -70,5 +70,62 @@ describe('/albums', () => {
             expect(res.body).toHaveProperty('release_year', 2001);
             expect(res.body).toHaveProperty('band_id', bandId);
         });
-    }, 10000);
+    });
+
+    describe('POST /', () => {
+        let name, release_year, band_id;
+        const exec = async () => {
+          return await request(app)
+            .post('/albums')
+            .send({ name, release_year, band_id });
+        };
+      
+        beforeEach(async () => {
+          // Insert a band for testing
+          const [result] = await connection.query('INSERT INTO bands (name) VALUES (?)', ['Band 1']);
+          band_id = result.insertId;
+          name = 'Album 1';
+          release_year = 2001;
+        });
+      
+        it('should return 400 if band_id does not exist', async () => {
+          band_id = 9999; // Non-existing band_id
+          const res = await exec();
+          expect(res.status).toBe(400);
+        });
+      
+        it('should return 400 if name is less than 3 characters', async () => {
+          name = 'AB';
+          const res = await exec();
+          expect(res.status).toBe(400);
+        });
+
+        it('should return 400 if year is less than 1900', async () => {
+            release_year = 19;
+            const res = await exec();
+            expect(res.status).toBe(400);
+          });
+
+          it('should return 400 if year is more than the current year', async () => {
+            release_year = new Date().getFullYear();
+            const res = await exec();
+            expect(res.status).toBe(400);
+          });
+      
+        it('should return 400 if name is more than 255 characters', async () => {
+          name = new Array(257).join('a');
+          const res = await exec();
+          expect(res.status).toBe(400);
+        });
+      
+        it('should return 200 and the created album on correct request body', async () => {
+          const res = await exec();
+          //this test is failing but working fine when i test it manually
+          expect(res.status).toBe(200);
+          expect(res.body).toHaveProperty('name', name);
+          expect(res.body).toHaveProperty('release_year', release_year);
+          expect(res.body).toHaveProperty('band_id', band_id);
+        });
+      });
+      
 });
